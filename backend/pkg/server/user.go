@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AdityaVallabh/gochat/pkg/server/models"
+	"github.com/AdityaVallabh/gochat/pkg/models"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )

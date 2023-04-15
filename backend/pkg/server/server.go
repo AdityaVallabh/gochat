@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/AdityaVallabh/gochat/pkg/server/models"
+	"github.com/AdityaVallabh/gochat/pkg/models"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"gorm.io/gorm"
