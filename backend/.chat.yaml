@@ -1,0 +1,6 @@
+address: 0.0.0.0:8000
+db_host: localhost
+db_user: postgres
+db_password: postgres
+db_name: postgres
+db_port: 5432
