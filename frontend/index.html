@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>GoChat</title>
+</head>
+<body>
+    <h2>GoChat Server</h2>
+    <p>Watch the console...</p>
+    <script>
+        let socket = new WebSocket("ws://localhost:8000/ws");
+        console.log("Attempting Connection...");
+        
+        socket.onopen = () => {
+            console.log("Successfully Connected");
+            socket.send("Hi From the Client!")
+        };
+        
+        socket.onclose = event => {
+            console.log("Socket Closed Connection: ", event);
+            socket.send("Client Closed!")
+        };
+        
+        socket.onerror = error => {
+            console.log("Socket Error: ", error);
+        };
+        
+        socket.onmessage = (msg) => {
+            console.log(msg.data);
+        };
+        
+    </script>
+</body>
+</html>
