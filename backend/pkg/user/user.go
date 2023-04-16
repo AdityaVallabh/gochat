@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"net/http"
 	"sync"
 
 	"github.com/AdityaVallabh/gochat/pkg/events"
@@ -17,6 +18,11 @@ var (
 	ErrUserNotInRoom = errors.New("user not in room")
 )
 
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
 type room interface {
 	ID() uuid.UUID
 	Add(*User) error
@@ -26,7 +32,7 @@ type room interface {
 
 type User struct {
 	*models.User
-	Conns    map[uuid.UUID]websocket.Conn
+	Conns    map[uuid.UUID]*websocket.Conn
 	MaxConns int
 	Rooms    sync.Map // sync.Map[uuid.UUID]room
 
@@ -35,11 +41,17 @@ type User struct {
 	log *log.Entry
 }
 
-func (u *User) NewConn(ws websocket.Conn) error {
+func (u *User) NewConn(w http.ResponseWriter, r *http.Request) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if len(u.Conns) == u.MaxConns {
 		return errors.New("max conns reached")
+	}
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Error(err)
+		w.Write([]byte(err.Error()))
+		return nil
 	}
 	id := uuid.New()
 	u.Conns[id] = ws
@@ -83,16 +95,18 @@ func (u *User) send(m events.Message) {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
 	for _, conn := range u.Conns {
-		go func(conn websocket.Conn) {
+		go func(conn *websocket.Conn) {
 			err := conn.WriteJSON(m)
-			log.WithFields(log.Fields{
-				"error": err.Error(),
-			}).Error("could not send message")
+			if err != nil {
+				log.WithFields(log.Fields{
+					"error": err.Error(),
+				}).Error("could not send message")
+			}
 		}(conn)
 	}
 }
 
-func (u *User) reader(id uuid.UUID, ws websocket.Conn) {
+func (u *User) reader(id uuid.UUID, ws *websocket.Conn) {
 	defer func() {
 		u.mu.Lock()
 		defer u.mu.Unlock()
@@ -109,10 +123,10 @@ func (u *User) reader(id uuid.UUID, ws websocket.Conn) {
 				log.Warn("error reading message from ws")
 				return
 			}
-			if !websocket.IsCloseError(err, clientDisconnects...) {
-				log.Warn("error decoding message")
+			if websocket.IsCloseError(err, clientDisconnects...) {
 				return
 			}
+			log.Warn("error decoding message")
 			continue
 		}
 		err = u.speak(m)
@@ -138,11 +152,13 @@ func NewUser(u *models.User) *User {
 	user := &User{
 		User:     u,
 		MaxConns: 2,
-		Conns:    make(map[uuid.UUID]websocket.Conn),
+		Rooms:    sync.Map{},
+		Conns:    make(map[uuid.UUID]*websocket.Conn),
 		mu:       &sync.RWMutex{},
 		ch:       make(chan events.Message),
 		log:      log.WithField("user", u.Name),
 	}
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	go user.sendLoop()
 	return user
 }

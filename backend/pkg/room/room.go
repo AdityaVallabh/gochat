@@ -29,13 +29,14 @@ func (r *Room) Add(u *user.User) error {
 	return nil
 }
 
-func (r *Room) Remove(u *user.User) {
+func (r *Room) Remove(u *user.User) error {
 	defer r.mu.Unlock()
 	r.mu.Lock()
 	delete(r.users, u.ID)
+	return nil
 }
 
-func (r *Room) Speak(m events.Message) error {
+func (r *Room) Send(m events.Message) error {
 	r.ch <- m
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/AdityaVallabh/gochat/pkg/models"
+	"github.com/AdityaVallabh/gochat/pkg/user"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
@@ -28,24 +29,24 @@ func (s *Server) handleUserPost() http.HandlerFunc {
 		}
 
 		now := time.Now()
-		user := models.User{
+		u := models.User{
 			Name:       req.Name,
 			CreatedAt:  now,
 			LastActive: now,
 		}
-		s.DB.Save(&user)
+		s.DB.Save(&u)
 		if err != nil {
 			log.Error(err.Error())
 			s.respond(w, r, http.StatusInternalServerError, errorResponse{err.Error()})
 		}
-
+		s.users.Store(u.ID, user.NewUser(&u))
 		log.WithFields(log.Fields{
-			"id":   user.ID,
-			"name": user.Name,
+			"id":   u.ID,
+			"name": u.Name,
 		}).Info("Created user")
 		s.respond(w, r, http.StatusOK, response{
-			ID:   user.ID,
-			Name: user.Name,
+			ID:   u.ID,
+			Name: u.Name,
 		})
 	}
 }

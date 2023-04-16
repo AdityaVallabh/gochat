@@ -1,53 +1,38 @@
 package server
 
 import (
+	"log"
 	"net/http"
 
-	"github.com/gorilla/websocket"
-	log "github.com/sirupsen/logrus"
+	"github.com/AdityaVallabh/gochat/pkg/user"
+	"github.com/google/uuid"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
 func (s *Server) handleWs() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := log.WithField("addr", r.RemoteAddr)
-		upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-		ws, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Error(err)
-			w.Write([]byte(err.Error()))
-			return
-		}
-		log.Info("Client connected")
-		go reader(ws)
+	type request struct {
+		UserID uuid.UUID
 	}
-}
-
-func reader(conn *websocket.Conn) {
-	defer log.Info("Client disconnected")
-	for {
-		messageType, p, err := conn.ReadMessage()
+	return func(w http.ResponseWriter, r *http.Request) {
+		req := request{uuid.MustParse(r.URL.Query().Get("id"))}
+		log.Println(req.UserID)
+		v, ok := s.users.Load(req.UserID)
+		if !ok {
+			log.Println("no user")
+			s.respond(w, r, http.StatusBadRequest, errorResponse{"no user"})
+			return
+		}
+		u, ok := v.(*user.User)
+		if !ok {
+			log.Println("no user 2")
+			s.respond(w, r, http.StatusBadRequest, errorResponse{"no user 2"})
+			return
+		}
+		err := u.NewConn(w, r)
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err,
-				websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.WithField("error", err).Warn("error reading message from ws")
-			}
+			log.Println("no join")
+			s.respond(w, r, http.StatusBadRequest, errorResponse{err.Error()})
 			return
 		}
-
-		log.WithFields(log.Fields{
-			"addr":        conn.RemoteAddr(),
-			"messageType": messageType,
-			"message":     string(p),
-		}).Info("Client Message")
-
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Warn(err)
-			return
-		}
+		log.Println("ok")
 	}
 }
